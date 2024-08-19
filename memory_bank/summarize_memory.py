@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-import sys 
+import logging
+import sys
 sys.path.append('../memory_bank')
 # from azure_client import LLMClientSimple
 import openai, json, os
@@ -9,11 +10,11 @@ import copy
 class LLMClientSimple:
 
     def __init__(self,gen_config=None):
-        
+
         openai.api_key = os.getenv("OPENAI_API_KEY")
-        
+
         self.disable_tqdm = False
-        self.gen_config = gen_config 
+        self.gen_config = gen_config
 
     def generate_text_simple(self,prompt,prompt_num,language='en'):
         self.gen_config['n'] = prompt_num
@@ -51,14 +52,15 @@ class LLMClientSimple:
         else:
             task_desc = ''
         return task_desc
-    
 
-chatgpt_config = {"model": "gpt-3.5-turbo",
+
+chatgpt_config = {"model": "gpt-4-turbo",
+# chatgpt_config = {"model": "gpt-3.5-turbo",
         "temperature": 0.7,
-        "max_tokens": 400,
+        "max_tokens": 4000,
         "top_p": 1.0,
         "frequency_penalty": 0.4,
-        "presence_penalty": 0.2, 
+        "presence_penalty": 0.2,
         "stop": ["<|im_end|>", "¬人类¬"]
         }
 
@@ -107,6 +109,7 @@ def summarize_person_prompt(content,user_name,boot_name,language):
 
 
 def summarize_memory(memory_dir,name=None,language='cn'):
+    logging.info(f"Starting memory summarization for directory: {memory_dir}")
     boot_name = 'AI'
     gen_prompt_num = 1
     memory = json.loads(open(memory_dir,'r',encoding='utf8').read())
@@ -115,6 +118,7 @@ def summarize_memory(memory_dir,name=None,language='cn'):
         if name != None and k != name:
             continue
         user_name = k
+        logging.info(f'Updating memory for user {user_name}')
         print(f'Updating memory for user {user_name}')
         if v.get('history') == None:
             continue
@@ -125,6 +129,7 @@ def summarize_memory(memory_dir,name=None,language='cn'):
             memory[user_name]['personality'] = {}
         for date, content in history.items():
             # print(f'Updating memory for date {date}')
+            logging.info(f'Updating memory for date {date}')
             his_flag = False if (date in v['summary'].keys() and v['summary'][date]) else True
             person_flag = False if (date in v['personality'].keys() and v['personality'][date]) else True
             hisprompt = summarize_content_prompt(content,user_name,boot_name,language)
@@ -135,21 +140,18 @@ def summarize_memory(memory_dir,name=None,language='cn'):
             if person_flag:
                 person_summary = llm_client.generate_text_simple(prompt=person_prompt,prompt_num=gen_prompt_num,language=language)
                 memory[user_name]['personality'][date] = person_summary
-        
+
+        logging.info(f'Generating overall history and personality for user {user_name}')
         overall_his_prompt = summarize_overall_prompt(list(memory[user_name]['summary'].items()),language=language)
         overall_person_prompt = summarize_overall_personality(list(memory[user_name]['personality'].items()),language=language)
         memory[user_name]['overall_history'] = llm_client.generate_text_simple(prompt=overall_his_prompt,prompt_num=gen_prompt_num,language=language)
         memory[user_name]['overall_personality'] = llm_client.generate_text_simple(prompt=overall_person_prompt,prompt_num=gen_prompt_num,language=language)
- 
+
     with open(memory_dir,'w',encoding='utf8') as f:
         print(f'Sucessfully update memory for {name}')
         json.dump(memory,f,ensure_ascii=False)
+    logging.info(f'Successfully updated memory for {name if name else "all users"}')
     return memory
 
 if __name__ == '__main__':
     summarize_memory('../memories/eng_memory_cases.json',language='en')
-
-
-                
-
-

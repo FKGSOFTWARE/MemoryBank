@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 @dataclass
 class DataArguments:
     memory_search_top_k: int = field(default=2)
-    memory_basic_dir: str = field(default='../../memories/')
-    memory_file: str = field(default='update_memory_0512_eng.json')
+    memory_basic_dir: str = field(default='/home/goose/memory_bank/MemoryBank-SiliconFriend/memories/')
+    memory_file: str = field(default='update_memory.json')
     language: str = field(default='en')
     max_history: int = field(default=7,metadata={"help": "maximum number for keeping current history"},)
     enable_forget_mechanism: bool = field(default=False)

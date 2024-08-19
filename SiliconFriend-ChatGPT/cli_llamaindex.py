@@ -2,6 +2,8 @@
 import os, shutil
 import logging
 import sys, openai
+
+from dotenv import load_dotenv
 import copy
 import time, platform
 
@@ -35,17 +37,19 @@ def signal_handler(signal, frame):
 
 VECTOR_SEARCH_TOP_K = 2
 
-api_path ='api_key_list.txt'
+load_dotenv()
 
-def read_apis(api_path):
-    api_keys = []
-    with open(api_path,'r',encoding='utf8') as f:
-         lines = f.readlines()
-         for line in lines:
-             line = line.strip()
-             if line:
-                 api_keys.append(line)
-    return api_keys
+# api_path ='api_key_list.txt'
+
+# def read_apis(api_path):
+#     api_keys = []
+#     with open(api_path,'r',encoding='utf8') as f:
+#          lines = f.readlines()
+#          for line in lines:
+#              line = line.strip()
+#              if line:
+#                  api_keys.append(line)
+#     return api_keys
 
 
 memory_dir = os.path.join(data_args.memory_basic_dir,data_args.memory_file)
@@ -61,7 +65,7 @@ boot_name = boot_name_dict[language]
 boot_actual_name = boot_actual_name_dict[language]
 meta_prompt = generate_meta_prompt_dict_chatgpt()[language]
 new_user_meta_prompt = generate_new_user_meta_prompt_dict_chatgpt()[language]
-api_keys = read_apis(api_path)
+api_keys = os.getenv("OPENAI_API_KEY")
 
 deactivated_keys = []
 logging.basicConfig(
@@ -69,47 +73,50 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
 )
 
-def chatgpt_chat(prompt,system,history,gpt_config,api_index=0):
-        retry_times,count = 5,0
-        response = None
-        while response is None and count<retry_times:
-            try:
-                request = copy.deepcopy(gpt_config)
-                # print(prompt)
-                if data_args.language=='en':
-                    message = [
+def chatgpt_chat(prompt, system, history, gpt_config, api_index=0):
+    retry_times, count = 5, 0
+    response = None
+    while response is None and count < retry_times:
+        try:
+            request = copy.deepcopy(gpt_config)
+            if data_args.language == 'en':
+                message = [
                     {"role": "system", "content": system.strip()},
                     {"role": "user", "content": "Hi!"},
                     {"role": "assistant", "content": f"Hi! I'm {boot_actual_name}! I will give you warm companion!"}]
-                else:
-                     message = [
+            else:
+                message = [
                     {"role": "system", "content": system.strip()},
                     {"role": "user", "content": "你好！"},
                     {"role": "assistant", "content": f"你好，我是{boot_actual_name}！我会给你温暖的陪伴！"}]
-                for query, response in history:
-                    message.append({"role": "user", "content": query})
-                    message.append({"role": "assistant", "content": response})
-                message.append({"role":"user","content": f"{prompt}"})
-                # print(request)
-                # print(message)
-                response = openai.ChatCompletion.create(
-                    **request, messages=message)
-                # print(prompt)
-            except Exception as e:
-                print(e)
-                if 'This key is associated with a deactivated account' in str(e):
-                    deactivated_keys.append(api_keys[api_index])
-                api_index = api_index+1 if api_index<len(api_keys)-1 else 0
-                while api_keys[api_index] in deactivated_keys:
-                    api_index = api_index+1 if api_index<len(api_keys)-1 else 0
-                openai.api_key = api_keys[api_index]
+            for query, response in history:
+                message.append({"role": "user", "content": query})
+                message.append({"role": "assistant", "content": response})
+            message.append({"role": "user", "content": f"{prompt}"})
+            
+            response = openai.ChatCompletion.create(**request, messages=message)
+            
+        except openai.error.APIConnectionError as e:
+            print(f"OpenAI API Connection Error: {str(e)}")
+            count += 1
+            if count == retry_times:
+                raise  # Re-raise the exception if we've exhausted all retries
+        except Exception as e:
+            print(f"Error in API call: {str(e)}")
+            if 'This key is associated with a deactivated account' in str(e):
+                deactivated_keys.append(api_keys[api_index])
+            api_index = api_index + 1 if api_index < len(api_keys) - 1 else 0
+            while api_keys[api_index] in deactivated_keys:
+                api_index = api_index + 1 if api_index < len(api_keys) - 1 else 0
+            openai.api_key = api_keys[api_index]
+            count += 1
+            if count == retry_times:
+                raise  # Re-raise the exception if we've exhausted all retries
 
-                count+=1
-        if response:
-            response = response['choices'][0]['message']['content'] #[response['choices'][i]['text'] for i in range(len(response['choices']))]
-        else:
-            response = ''
-        return response
+    if response and isinstance(response, dict) and 'choices' in response:
+        return response['choices'][0]['message']['content']
+    else:
+        raise ValueError(f"Unexpected response format or empty response: {response}")
 
 
 
@@ -128,8 +135,15 @@ def predict_new(
 ):
     if text == "":
         return history, history, "Empty context."
-    system_prompt,related_memo = build_prompt_with_search_memory_llamaindex(history,text,user_memory,user_name,user_memory_index,service_context=service_context,api_keys=api_keys,api_index=api_index,meta_prompt=meta_prompt,new_user_meta_prompt=new_user_meta_prompt,data_args=data_args,boot_actual_name=boot_actual_name)
-    chatgpt_config = {"model": "gpt-3.5-turbo",
+    
+    system_prompt, related_memo = build_prompt_with_search_memory_llamaindex(
+        history, text, user_memory, user_name, user_memory_index, 
+        service_context=service_context, api_keys=api_keys, api_index=api_index,
+        meta_prompt=meta_prompt, new_user_meta_prompt=new_user_meta_prompt,
+        data_args=data_args, boot_actual_name=boot_actual_name
+    )
+    # chatgpt_config = {"model": "gpt-3.5-turbo",
+    chatgpt_config = {"model": "gpt-4-turbo",                      
         "temperature": temperature,
         "max_tokens": max_length_tokens,
         "top_p": top_p,
@@ -147,11 +161,8 @@ def predict_new(
    
     torch.cuda.empty_cache()
    
-    a, b = [[y[0], y[1]] for y in history] + [
-                    [text, result]], history + [[text, result]]
-    # a, b = [[y[0], convert_to_markdown(y[1])] for y in history] ,history 
-    if user_name:
-        save_local_memory(memory,b,user_name,data_args)
+    a, b = [[y[0], y[1]] for y in history] + [[text, result]], history + [[text, result]]
+    a = [{'query': item[0], 'response': item[1]} for item in a]
     
     return a, b, "Generating..."
      
@@ -159,7 +170,9 @@ def predict_new(
 
 def main(): 
     openai.api_key = os.getenv("OPENAI_API_KEY")
-    llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-3.5-turbo"))
+    # llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-3.5-turbo"))
+    llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-4-turbo"))
+    
     max_input_size = 4096
     # set number of output tokens
     num_output = 256

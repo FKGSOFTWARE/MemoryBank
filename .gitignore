@@ -1,0 +1,8 @@
+.venv
+# .gitignore
+*/launch.sh
+SiliconFriend-ChatGPT/launch.sh
+*/__pycache__
+*__init__.py
+.env
+*.pyc

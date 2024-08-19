@@ -48,4 +48,5 @@ UPLOAD_ROOT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "con
 
 
 # 匹配后单段上下文长度
-CHUNK_SIZE = 200
+# CHUNK_SIZE = 200 # oringal 
+CHUNK_SIZE = 100

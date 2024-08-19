@@ -11,8 +11,10 @@ from typing import List, Tuple
 from langchain.docstore.document import Document
 import numpy as np
 import json
+import logging
 # return top-k text chunk from vector store
-VECTOR_SEARCH_TOP_K = 3
+# VECTOR_SEARCH_TOP_K = 3 #original
+VECTOR_SEARCH_TOP_K = 15
 
 class JsonMemoryLoader(UnstructuredFileLoader):
     def __init__(self, filepath,language,mode="elements"):
@@ -21,7 +23,7 @@ class JsonMemoryLoader(UnstructuredFileLoader):
         self.language = language
     def _get_metadata(self, date: str) -> dict:
         return {"source": date}
-    
+
     def load(self,name):
         user_memories = []
         print(self.file_path)
@@ -45,21 +47,21 @@ class JsonMemoryLoader(UnstructuredFileLoader):
                     tmp_str = memory_str
                     tmp_str += f'{user_kw} {query.strip()}; '
                     tmp_str += f'{ai_kw} {response.strip()}'
-                    user_memories.append(Document(page_content=tmp_str, metadata=metadata)) 
+                    user_memories.append(Document(page_content=tmp_str, metadata=metadata))
                 # memory_str += '\n'
-                if 'summary' in user_memory.keys(): 
+                if 'summary' in user_memory.keys():
                     if date in user_memory['summary'].keys():
                         summary = f'时间{date}的对话总结为：{user_memory["summary"][date]}' if self.language=='cn' else f'The summary of the conversation on {date} is: {user_memory["summary"][date]}'
                         # memory_str += summary
-                        user_memories.append(Document(page_content=summary, metadata=metadata)) 
+                        user_memories.append(Document(page_content=summary, metadata=metadata))
                 # if 'personality' in user_memory.keys():
                 #     if date in user_memory['personality'].keys():
                 #         memory_str += f'日期{date}的对话分析为：{user_memory["personality"][date]}'
                 # print(memory_str)
-                # user_memories.append(Document(page_content=memory_str, metadata=metadata)) 
-        f.close() 
+                # user_memories.append(Document(page_content=memory_str, metadata=metadata))
+        f.close()
         return user_memories
-     
+
     def load_and_split(
         self, text_splitter: Optional[TextSplitter] = None,name=''
     ) -> List[Document]:
@@ -78,7 +80,7 @@ class JsonMemoryLoader(UnstructuredFileLoader):
         # print(results[0])
         # exit()
         return results
-    
+
 
 def load_file(filepath,language='cn'):
     if filepath.endswith(".md"):
@@ -109,7 +111,7 @@ def load_memory_file(filepath,user_name,language='cn'):
     # textsplitter = ChineseTextSplitter(pdf=False)
     # docs = loader.load_and_split(textsplitter,user_name)
     return docs
- 
+
 
 def get_docs_with_score(docs_with_score):
     docs=[]
@@ -192,7 +194,7 @@ class LocalMemoryRetrieval:
         self.embeddings = HuggingFaceEmbeddings(model_name=embedding_model_dict[embedding_model],
                                                 model_kwargs={'device': embedding_device})
         self.top_k = top_k
-    
+
     def init_memory_vector_store(self,
                                     filepath: str or List[str],
                                     vs_path: str or os.PathLike = None,
@@ -253,13 +255,13 @@ class LocalMemoryRetrieval:
         else:
             print("文件均未成功加载，请检查依赖包或替换为其他文件再次上传。")
             return None, loaded_files
-    
+
     def load_memory_index(self,vs_path):
         vector_store = FAISS.load_local(vs_path, self.embeddings)
         FAISS.similarity_search_with_score_by_vector = similarity_search_with_score_by_vector
         vector_store.chunk_size=self.chunk_size
         return vector_store
-    
+
     def search_memory(self,
                     query,
                     vector_store):
@@ -267,9 +269,10 @@ class LocalMemoryRetrieval:
         # vector_store = FAISS.load_local(vs_path, self.embeddings)
         # FAISS.similarity_search_with_score_by_vector = similarity_search_with_score_by_vector
         # vector_store.chunk_size=self.chunk_size
-        related_docs_with_score = vector_store.similarity_search_with_score(query,
-                                                                            k=self.top_k)
+        logging.info(f"Searching memory for query: {query}")
+        related_docs_with_score = vector_store.similarity_search_with_score(query, k=self.top_k)
         related_docs = get_docs_with_score(related_docs_with_score)
+        logging.info(f"Retrieved {len(related_docs)} related documents")
         related_docs = sorted(related_docs, key=lambda x: x.metadata["source"], reverse=False)
         pre_date = ''
         date_docs = []
@@ -282,9 +285,8 @@ class LocalMemoryRetrieval:
                 pre_date = doc.metadata["source"]
                 dates.append(pre_date)
             else:
-                date_docs[-1] += f'\n{doc.page_content}' 
+                date_docs[-1] += f'\n{doc.page_content}'
         # memory_contents = [doc.page_content for doc in related_docs]
         # memory_contents = [f'在时间'+doc.metadata['source']+'的回忆内容是：'+doc.page_content for doc in related_docs]
-        return date_docs, ', '.join(dates) 
-    
-
+        logging.info(f"Processed {len(date_docs)} unique dates from memories")
+        return date_docs, ', '.join(dates)

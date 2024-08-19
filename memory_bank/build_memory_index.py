@@ -3,66 +3,123 @@ from llama_index import GPTTreeIndex, GPTSimpleVectorIndex
 from llama_index.indices.composability import ComposableGraph
 import json, openai
 from llama_index import LLMPredictor, GPTSimpleVectorIndex, PromptHelper, ServiceContext
-# from langchain import OpenAI, AzureOpenAI
 from langchain.llms import AzureOpenAI,OpenAIChat
 import os
+import logging
+from llama_index import GPTSimpleVectorIndex, Document
+from langchain.chat_models import ChatOpenAI
+from llama_index import LLMPredictor, PromptHelper, ServiceContext
+from custom_index import CustomGPTSimpleVectorIndex
+
 # language = 'en'
 openai.api_key = os.environ["OPENAI_API_KEY"]
 # os.environ["OPENAI_API_BASE"] = openai.api_base
 # define LLM
-llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-3.5-turbo"))
+# llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-3.5-turbo"))
+llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-4-turbo"))
 
+#! original!
 # define prompt helper
+# set maximum input size
+# max_input_size = 4096
+# # set number of output tokens
+# num_output = 256
+# # set maximum chunk overlap
+# max_chunk_overlap = 20
+
+
 # set maximum input size
 max_input_size = 4096
 # set number of output tokens
-num_output = 256
-# set maximum chunk overlap 
-max_chunk_overlap = 20
+num_output = 512
+# set maximum chunk overlap
+max_chunk_overlap = 50
 
-
-def generate_memory_docs(data,language):
-    # data = json.load(open(memory_path,'r',encoding='utf8'))
+def generate_memory_docs(data, language):
+    logging.info(f"Generating memory docs for users: {list(data.keys())}")
     all_user_memories = {}
     for user_name, user_memory in data.items():
-        # print(user_memory)
         all_user_memories[user_name] = []
-        if 'history' not in user_memory.keys():
-            continue
-        for date, content in user_memory['history'].items():
-            memory_str = f'日期{date}的对话内容为：' if language=='cn' else f'Conversation on {date}：'
-            for dialog in content:
-                query = dialog['query']
-                response = dialog['response']
-                memory_str += f'\n{user_name}：{query.strip()}'
-                memory_str += f'\nAI：{response.strip()}'
-            memory_str += '\n'
-            if 'summary' in user_memory.keys():
-                if date in user_memory['summary'].keys():
-                    summary = f'时间{date}的对话总结为：{user_memory["summary"][date]}' if language=='cn' else f'The summary of the conversation on {date} is: {user_memory["summary"][date]}'
-                    memory_str += summary
-            # if 'personality' in user_memory.keys():
-            #     if date in user_memory['personality'].keys():
-            #         memory_str += f'日期{date}的对话分析为：{user_memory["personality"][date]}'
-            # print(memory_str)
-            all_user_memories[user_name].append(Document(memory_str))
+        if isinstance(user_memory, dict) and 'history' in user_memory:
+            for date, content in user_memory['history'].items():
+                for dialog in content:
+                    query = dialog['query']
+                    response = dialog['response']
+                    memory_str = f'Date: {date}\nUser: {query.strip()}\nAI: {response.strip()}'
+                    all_user_memories[user_name].append(Document(memory_str))
+        elif isinstance(user_memory, list):
+            for memory in user_memory:
+                all_user_memories[user_name].append(Document(memory))
+        else:
+            logging.warning(f"Unexpected memory format for user {user_name}")
+        logging.info(f"Generated {len(all_user_memories[user_name])} memories for user {user_name}")
     return all_user_memories
-            
+
 # all_user_memories = load_data('../memories/update_memory_0512_eng.json')
 index_set = {}
-def build_memory_index(all_user_memories,data_args,name=None):
-    all_user_memories = generate_memory_docs(all_user_memories,data_args.language)
-    llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-3.5-turbo"))
-    prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
+def build_memory_index(all_user_memories, data_args, name=None):
+    logging.info(f"Starting build_memory_index for user: {name}")
+
+    all_user_memories = generate_memory_docs(all_user_memories, data_args.language)
+    logging.info(f"Generated memory docs for users: {list(all_user_memories.keys())}")
+
+    llm_predictor = LLMPredictor(llm=ChatOpenAI(model_name="gpt-4-turbo"))
+    prompt_helper = PromptHelper(max_input_size=4096, num_output=512, max_chunk_overlap=50)
     service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
-    for user_name, memories in all_user_memories.items():
-        # print(all_user_memories[user_name])
-        if name:
-            if user_name != name:
-                continue
-        print(f'build index for user {user_name}')
-        cur_index = GPTSimpleVectorIndex.from_documents(memories,service_context=service_context)
-        index_set[user_name] = cur_index
-        os.makedirs(f'../memories/memory_index/llamaindex',exist_ok=True)
-        cur_index.save_to_disk(f'../memories/memory_index/llamaindex/{user_name}_index.json')
- 
+
+    for user_name, user_data in all_user_memories.items():
+        if name and user_name != name:
+            continue
+
+        index_path = os.path.join(data_args.memory_basic_dir, 'memory_index', f'{user_name}_index.json')
+
+        try:
+            if os.path.exists(index_path):
+                cur_index = CustomGPTSimpleVectorIndex.load_from_disk(index_path, service_context=service_context)
+                logging.info(f"Loaded existing index for user {user_name}")
+            else:
+                cur_index = CustomGPTSimpleVectorIndex([], service_context=service_context)
+                logging.info(f"Created new index for user {user_name}")
+
+            vector_store_info = cur_index.get_vector_store_info()
+            logging.info(f"Initial index state for user {user_name}: {vector_store_info['total_documents']} documents, {vector_store_info['total_embeddings']} embeddings")
+
+            new_memories = []
+            if isinstance(user_data, list):
+                for memory in user_data:
+                    new_memories.append(Document(text=memory))
+            elif isinstance(user_data, dict) and 'history' in user_data:
+                for date, conversations in user_data['history'].items():
+                    for conversation in conversations:
+                        memory_str = f"Date: {date}\nUser: {conversation['query']}\nAI: {conversation['response']}"
+                        new_memories.append(Document(text=memory_str, extra_info={'date': date}))
+
+            if new_memories:
+                for memory in new_memories:
+                    try:
+                        logging.info(f"!!Memory object type: {type(memory)}")
+                        logging.info(f"Attempting to insert memory: {memory.text[:100]}...")
+                        cur_index.insert(memory)
+                        logging.info(f"Successfully inserted memory")
+                    except Exception as e:
+                        logging.error(f"Failed to insert memory: {str(e)}")
+                logging.info(f"Attempted to add {len(new_memories)} new memories to index for user {user_name}")
+
+            vector_store_info = cur_index.get_vector_store_info()
+            logging.info(f"Final index state for user {user_name}: {vector_store_info['total_documents']} documents, {vector_store_info['total_embeddings']} embeddings")
+
+            cur_index.save_to_disk(index_path)
+            logging.info(f"Saved updated index for user {user_name} at {index_path}")
+
+            # Validate saved index
+            loaded_index = CustomGPTSimpleVectorIndex.load_from_disk(index_path, service_context=service_context)
+            vector_store_info = loaded_index.get_vector_store_info()
+            logging.info(f"Validated saved index for user {user_name}: {vector_store_info['total_documents']} documents, {vector_store_info['total_embeddings']} embeddings")
+
+        except Exception as e:
+            logging.error(f"Error processing memories for user {user_name}: {str(e)}")
+            logging.exception("Exception details:")
+            continue
+
+    logging.info("Finished build_memory_index")
+    return cur_index
