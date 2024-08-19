@@ -1,6 +1,6 @@
 *In memoryBank repo terminal*
 # Install requirements
-```pip install requirement.txt```
+```pip install -r requirement.txt```
 # Navigate to MemoryBank-SiliconFriend/SiliconFriend-ChatGPT/
 ```cd SiliconFriend-ChatGPT```
 # Export API Key or add dotenv to 'silicon_friend_api'
