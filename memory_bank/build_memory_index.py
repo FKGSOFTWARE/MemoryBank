@@ -57,15 +57,11 @@ def generate_memory_docs(data, language):
 
 # all_user_memories = load_data('../memories/update_memory_0512_eng.json')
 index_set = {}
-def build_memory_index(all_user_memories, data_args, name=None):
+def build_memory_index(all_user_memories, data_args, cur_index, name=None):
     logging.info(f"Starting build_memory_index for user: {name}")
 
     all_user_memories = generate_memory_docs(all_user_memories, data_args.language)
     logging.info(f"Generated memory docs for users: {list(all_user_memories.keys())}")
-
-    llm_predictor = LLMPredictor(llm=ChatOpenAI(model_name="gpt-4-turbo"))
-    prompt_helper = PromptHelper(max_input_size=4096, num_output=512, max_chunk_overlap=50)
-    service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
 
     for user_name, user_data in all_user_memories.items():
         if name and user_name != name:
@@ -74,12 +70,12 @@ def build_memory_index(all_user_memories, data_args, name=None):
         index_path = os.path.join(data_args.memory_basic_dir, 'memory_index', f'{user_name}_index.json')
 
         try:
-            if os.path.exists(index_path):
-                cur_index = CustomGPTSimpleVectorIndex.load_from_disk(index_path, service_context=service_context)
-                logging.info(f"Loaded existing index for user {user_name}")
-            else:
-                cur_index = CustomGPTSimpleVectorIndex([], service_context=service_context)
-                logging.info(f"Created new index for user {user_name}")
+            # if os.path.exists(index_path):
+            #     cur_index = CustomGPTSimpleVectorIndex.load_from_disk(index_path, service_context=service_context)
+            #     logging.info(f"Loaded existing index for user {user_name}")
+            # else:
+            #     cur_index = CustomGPTSimpleVectorIndex([], service_context=service_context)
+            #     logging.info(f"Created new index for user {user_name}")
 
             vector_store_info = cur_index.get_vector_store_info()
             logging.info(f"Initial index state for user {user_name}: {vector_store_info['total_documents']} documents, {vector_store_info['total_embeddings']} embeddings")
@@ -112,9 +108,9 @@ def build_memory_index(all_user_memories, data_args, name=None):
             logging.info(f"Saved updated index for user {user_name} at {index_path}")
 
             # Validate saved index
-            loaded_index = CustomGPTSimpleVectorIndex.load_from_disk(index_path, service_context=service_context)
-            vector_store_info = loaded_index.get_vector_store_info()
-            logging.info(f"Validated saved index for user {user_name}: {vector_store_info['total_documents']} documents, {vector_store_info['total_embeddings']} embeddings")
+            # loaded_index = CustomGPTSimpleVectorIndex.load_from_disk(index_path, service_context=service_context)
+            # vector_store_info = loaded_index.get_vector_store_info()
+            # logging.info(f"Validated saved index for user {user_name}: {vector_store_info['total_documents']} documents, {vector_store_info['total_embeddings']} embeddings")
 
         except Exception as e:
             logging.error(f"Error processing memories for user {user_name}: {str(e)}")

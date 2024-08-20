@@ -64,9 +64,11 @@ class CustomGPTSimpleVectorIndex(GPTVectorStoreIndex):
                     node.get_text()
                 )
                 self._vector_store.add(
-                    [NodeEmbeddingResult(node=node, embedding=embedding_results, id=node.doc_hash, doc_id=node.doc_id)]
+                    [NodeEmbeddingResult(node=node, embedding=embedding_results, id=node.doc_id, doc_id=node.doc_id)]
                 )
                 self.docstore.add_documents([node], allow_update=True)
+                self._index_struct.add_node(node)
+
             logging.info(f"Inserted document into index. Current size: {len(self.docstore.docs)}")
 
         except TypeError as e:

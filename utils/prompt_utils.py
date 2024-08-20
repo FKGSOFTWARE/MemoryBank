@@ -33,7 +33,7 @@ Your response should demonstrate:
 - Ability to infer and extrapolate from given memories when appropriate
 
 Remember, your goal is to showcase intelligent and accurate use of provided memories in your responses. Focus on relevance, accuracy, and coherence in your answers.
-"""
+z"""
     }
     return meta_prompt_dict
 
@@ -86,7 +86,7 @@ def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_
             related_memos = user_memory_index.query(memory_search_query, service_context=service_context, similarity_top_k=5)  # Increase top_k to retrieve more memories
             related_memos_content = []
             for node in related_memos.source_nodes:
-                related_memos_content.append(node.text)
+                related_memos_content.append(node.node.text)
             related_memos = "\n\n".join(related_memos_content)
         except Exception as e:
             logging.error(f"Error during memory retrieval: {e}")
@@ -97,8 +97,8 @@ def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_
     logging.info(f"Number of relevant memories retrieved: {len(related_memos_content) if related_memos else 0}")
     logging.info(f"Relevant memories content: {related_memos}")
 
-    if "overall_history" in user_memory:
-        history_summary = f"The summary of your past memories with the user is: {user_memory['overall_history']}"
+    if len(related_memos) > 0:
+        history_summary = ""
         related_memory_content = f"\n{str(related_memos).strip()}\n"
     else:
         history_summary = ''

@@ -45,7 +45,7 @@ def enter_name(name, memory,local_memory_qa,data_args,update_memory_index=True):
         msg = f"欢迎新用户{name}！我会记住你的名字，下次见面就能叫你的名字啦！" if data_args.language == 'cn' else f'Welcome, new user {name}! I will remember your name, so next time we meet, I\'ll be able to call you by your name!'
         return msg,memory[name],memory,name,user_memory_index
 
-def enter_name_llamaindex(name, memory, data_args, update_memory_index=True):
+def enter_name_llamaindex(name, memory, curr_idx, data_args, update_memory_index=True):
     logging.info(f"Entering enter_name_llamaindex for user: {name}")
 
     user_memory_index = None
@@ -66,7 +66,7 @@ def enter_name_llamaindex(name, memory, data_args, update_memory_index=True):
 
     if not os.path.exists(memory_index_path) or update_memory_index:
         logging.info(f'Initializing memory index for {name}...')
-        user_memory_index = build_memory_index(memory, data_args, name=name)
+        user_memory_index = build_memory_index(memory, data_args, curr_idx, name=name)
     else:
         user_memory_index = GPTSimpleVectorIndex.load_from_disk(memory_index_path)
         logging.info(f'Successfully loaded memory index for user {name}!')

@@ -44,17 +44,20 @@ def initialize():
         # Create a fresh memory for the new user
         fresh_memory = {user_id: {"name": user_id, "history": {}}}
 
+        llm_predictor = LLMPredictor(llm=ChatOpenAI(model_name="gpt-4-turbo"))
+        prompt_helper = PromptHelper(max_input_size=4096, num_output=512, max_chunk_overlap=50)
+        service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
+
         users[user_id] = {
             "history": [],
             "user_memory": None,
-            "user_memory_index": None,
+            "user_memory_index": CustomGPTSimpleVectorIndex([], service_context=service_context),
         }
 
         # Pass the fresh memory to enter_name_llamaindex
-        hello_msg, user_memory, user_memory_index = enter_name_llamaindex(user_id, fresh_memory, data_args)
+        hello_msg, user_memory, user_memory_index = enter_name_llamaindex(user_id, fresh_memory, users[user_id]["user_memory_index"], data_args)
 
         users[user_id]["user_memory"] = user_memory
-        users[user_id]["user_memory_index"] = user_memory_index
 
         # Update the global memory with the new user's fresh memory
         memory.update(fresh_memory)
@@ -81,7 +84,6 @@ def query():
         return jsonify({"error": "User not initialized"}), 400
 
     user_data = users[user_id]
-    user_data["user_memory_index"] = sync_memory_index(user_id, memory, data_args)
 
     history_state, history, msg = predict_new(
         text=query_text,
@@ -104,7 +106,7 @@ def query():
     save_local_memory(memory, latest_interaction, user_id, data_args)
 
     # Rebuild index after saving new memory
-    user_data["user_memory_index"] = build_memory_index(memory, data_args, name=user_id)
+    user_data["user_memory_index"] = build_memory_index(memory, data_args, user_data["user_memory_index"], name=user_id)
 
     return jsonify({"response": history_state[-1]['response']})
 
