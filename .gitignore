@@ -6,3 +6,4 @@ SiliconFriend-ChatGPT/launch.sh
 *__init__.py
 .env
 *.pyc
+venv
