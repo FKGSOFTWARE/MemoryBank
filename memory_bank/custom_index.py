@@ -1,9 +1,14 @@
 from llama_index import Document, GPTVectorStoreIndex
 from llama_index.data_structs.node_v2 import Node
+from llama_index.docstore import SimpleDocumentStore
+from llama_index.docstore.utils import json_to_doc
 from llama_index.vector_stores.types import NodeEmbeddingResult
 from llama_index.vector_stores.simple import SimpleVectorStore
 import logging
 import json
+
+from pydantic.fields import defaultdict
+
 
 class CustomGPTSimpleVectorIndex(GPTVectorStoreIndex):
     def __init__(self, *args, **kwargs):
@@ -20,11 +25,21 @@ class CustomGPTSimpleVectorIndex(GPTVectorStoreIndex):
         with open(save_path, 'r') as f:
             data = json.load(f)
 
-        vector_store = SimpleVectorStore(data.get('vector_store', {}))
+        vector_store = SimpleVectorStore(simple_vector_store_data_dict=data.get('vector_store', {}).get("simple_vector_store_data_dict", {}))
         docstore = data.get('docstore', {})
+        rdi = defaultdict(dict)
+        for k, v in docstore.get("ref_doc_info", {}).items():
+            rdi[k] = v
 
+        docs_dict = {}
+        for i, d in docstore.get("docs", {}).items():
+            docs_dict[i] = json_to_doc(d)
+
+
+        # print(f"data: {docstore.get('docs', {})}")
+        # print(f"docs dict: {docs_dict}")
         index = cls(nodes=[], vector_store=vector_store, **kwargs)
-        index.docstore.from_dict(docstore)
+        index._docstore = SimpleDocumentStore(docs=docs_dict, ref_doc_info=rdi)
 
         return index
 
@@ -49,7 +64,7 @@ class CustomGPTSimpleVectorIndex(GPTVectorStoreIndex):
                     node.get_text()
                 )
                 self._vector_store.add(
-                    [NodeEmbeddingResult(node=node, embedding=embedding_results)]
+                    [NodeEmbeddingResult(node=node, embedding=embedding_results, id=node.doc_hash, doc_id=node.doc_id)]
                 )
                 self.docstore.add_documents([node], allow_update=True)
             logging.info(f"Inserted document into index. Current size: {len(self.docstore.docs)}")

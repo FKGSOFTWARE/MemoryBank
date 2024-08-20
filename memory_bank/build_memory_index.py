@@ -87,7 +87,7 @@ def build_memory_index(all_user_memories, data_args, name=None):
             new_memories = []
             if isinstance(user_data, list):
                 for memory in user_data:
-                    new_memories.append(Document(text=memory))
+                    new_memories.append(memory)
             elif isinstance(user_data, dict) and 'history' in user_data:
                 for date, conversations in user_data['history'].items():
                     for conversation in conversations:

@@ -6,3 +6,6 @@ SiliconFriend-ChatGPT/launch.sh
 *__init__.py
 .env
 *.pyc
+*/*/__pycache__/*
+/memories/update_memory.json
+/.idea
