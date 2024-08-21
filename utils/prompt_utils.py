@@ -83,7 +83,7 @@ def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_
     memory_search_query = f'The most relevant content to the question "{text}" is:'
     if user_memory_index:
         try:
-            related_memos = user_memory_index.query(memory_search_query, service_context=service_context, similarity_top_k=5)  # Increase top_k to retrieve more memories
+            related_memos = user_memory_index.query(memory_search_query, service_context=service_context, similarity_top_k=10)  # Increase top_k to retrieve more memories
             related_memos_content = []
             for node in related_memos.source_nodes:
                 related_memos_content.append(node.node.text)

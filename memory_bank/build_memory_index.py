@@ -16,7 +16,7 @@ openai.api_key = os.environ["OPENAI_API_KEY"]
 # os.environ["OPENAI_API_BASE"] = openai.api_base
 # define LLM
 # llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-3.5-turbo"))
-llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-4-turbo"))
+llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-4o-mini"))
 
 #! original!
 # define prompt helper
@@ -56,6 +56,8 @@ def generate_memory_docs(data, language):
     return all_user_memories
 
 # all_user_memories = load_data('../memories/update_memory_0512_eng.json')
+
+#!! Fiexs' version
 index_set = {}
 def build_memory_index(all_user_memories, data_args, cur_index, name=None):
     logging.info(f"Starting build_memory_index for user: {name}")

@@ -5,7 +5,7 @@ from cli_llamaindex import predict_new
 import openai
 from utils.sys_args import data_args
 from utils.memory_utils import enter_name_llamaindex, save_local_memory, sync_memory_index
-from llama_index import LLMPredictor, PromptHelper, ServiceContext
+from llama_index import Document, LLMPredictor, PromptHelper, ServiceContext
 from langchain.chat_models import ChatOpenAI
 from memory_bank.build_memory_index import build_memory_index
 from memory_bank.custom_index import CustomGPTSimpleVectorIndex
@@ -26,7 +26,7 @@ users = {}
 memory = json.load(open(os.path.join(data_args.memory_basic_dir, data_args.memory_file), "r", encoding="utf-8"))
 
 # Initialize LLMPredictor and ServiceContext
-llm_predictor = LLMPredictor(llm=ChatOpenAI(model_name="gpt-4-turbo"))
+llm_predictor = LLMPredictor(llm=ChatOpenAI(model_name="gpt-4o-mini"))
 max_input_size = 4096
 num_output = 256
 max_chunk_overlap = 20
@@ -44,7 +44,7 @@ def initialize():
         # Create a fresh memory for the new user
         fresh_memory = {user_id: {"name": user_id, "history": {}}}
 
-        llm_predictor = LLMPredictor(llm=ChatOpenAI(model_name="gpt-4-turbo"))
+        llm_predictor = LLMPredictor(llm=ChatOpenAI(model_name="gpt-4o-mini"))
         prompt_helper = PromptHelper(max_input_size=4096, num_output=512, max_chunk_overlap=50)
         service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
 
@@ -106,7 +106,9 @@ def query():
     save_local_memory(memory, latest_interaction, user_id, data_args)
 
     # Rebuild index after saving new memory
-    user_data["user_memory_index"] = build_memory_index(memory, data_args, user_data["user_memory_index"], name=user_id)
+    # user_data["user_memory_index"] = build_memory_index(memory, data_args, user_data["user_memory_index"], name=user_id)
+    new_memory = Document(text=f"User: {query_text}\nAI: {history_state[-1]['response']}")
+    user_data["user_memory_index"].insert(new_memory)
 
     return jsonify({"response": history_state[-1]['response']})
 

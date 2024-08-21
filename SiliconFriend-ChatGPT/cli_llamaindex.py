@@ -19,7 +19,7 @@ prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(prompt_path)
 from utils.sys_args import data_args,model_args
 from utils.app_modules.utils import *
-#  
+#
 from utils.app_modules.presets import *
 from utils.app_modules.overwrites import *
 from utils.prompt_utils import *
@@ -56,7 +56,7 @@ memory_dir = os.path.join(data_args.memory_basic_dir,data_args.memory_file)
 if not os.path.exists(memory_dir):
     json.dump({},open(memory_dir,"w",encoding="utf-8"))
 
-global memory 
+global memory
 memory = json.load(open(memory_dir,"r",encoding="utf-8"))
 language = 'en'
 user_keyword = generate_user_keyword()[language]
@@ -93,9 +93,9 @@ def chatgpt_chat(prompt, system, history, gpt_config, api_index=0):
                 message.append({"role": "user", "content": query})
                 message.append({"role": "assistant", "content": response})
             message.append({"role": "user", "content": f"{prompt}"})
-            
+
             response = openai.ChatCompletion.create(**request, messages=message)
-            
+
         except openai.error.APIConnectionError as e:
             print(f"OpenAI API Connection Error: {str(e)}")
             count += 1
@@ -135,44 +135,44 @@ def predict_new(
 ):
     if text == "":
         return history, history, "Empty context."
-    
+
     system_prompt, related_memo = build_prompt_with_search_memory_llamaindex(
-        history, text, user_memory, user_name, user_memory_index, 
+        history, text, user_memory, user_name, user_memory_index,
         service_context=service_context, api_keys=api_keys, api_index=api_index,
         meta_prompt=meta_prompt, new_user_meta_prompt=new_user_meta_prompt,
         data_args=data_args, boot_actual_name=boot_actual_name
     )
     # chatgpt_config = {"model": "gpt-3.5-turbo",
-    chatgpt_config = {"model": "gpt-4-turbo",                      
+    chatgpt_config = {"model": "gpt-4o-mini",
         "temperature": temperature,
         "max_tokens": max_length_tokens,
         "top_p": top_p,
         "frequency_penalty": 0.4,
-        "presence_penalty": 0.2, 
+        "presence_penalty": 0.2,
         'n':1
         }
-    
+
     if len(history) > data_args.max_history:
         history = history[data_args.max_history:]
     # print(history)
     response = chatgpt_chat(prompt=text,system=system_prompt,history=history,gpt_config=chatgpt_config,api_index=api_index)
     result = response
 
-   
+
     torch.cuda.empty_cache()
-   
+
     a, b = [[y[0], y[1]] for y in history] + [[text, result]], history + [[text, result]]
     a = [{'query': item[0], 'response': item[1]} for item in a]
-    
-    return a, b, "Generating..."
-     
-    
 
-def main(): 
+    return a, b, "Generating..."
+
+
+
+def main():
     openai.api_key = os.getenv("OPENAI_API_KEY")
     # llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-3.5-turbo"))
-    llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-4-turbo"))
-    
+    llm_predictor = LLMPredictor(llm=OpenAIChat(model_name="gpt-4o-mini"))
+
     max_input_size = 4096
     # set number of output tokens
     num_output = 256
@@ -214,7 +214,7 @@ def main():
                 os.system(clear_command)
                 print(output_prompt(history_state,user_name,boot_actual_name), flush=True)
                 signal.signal(signal.SIGINT, signal_handler)
-        os.system(clear_command)       
+        os.system(clear_command)
         print(output_prompt(history_state,user_name,boot_actual_name), flush=True)
 
 if __name__ == "__main__":

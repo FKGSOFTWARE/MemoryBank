@@ -54,7 +54,7 @@ class LLMClientSimple:
         return task_desc
 
 
-chatgpt_config = {"model": "gpt-4-turbo",
+chatgpt_config = {"model": "gpt-4o-mini",
 # chatgpt_config = {"model": "gpt-3.5-turbo",
         "temperature": 0.7,
         "max_tokens": 4000,
