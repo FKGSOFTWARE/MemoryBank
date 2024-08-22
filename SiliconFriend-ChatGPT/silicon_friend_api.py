@@ -1,5 +1,10 @@
 from flask import Flask, request, jsonify
-import os, json, time
+import os
+import json
+import time
+import io
+import pstats
+from datetime import datetime
 from dotenv import load_dotenv
 from cli_llamaindex import predict_new
 import openai
@@ -106,7 +111,6 @@ def query():
     save_local_memory(memory, latest_interaction, user_id, data_args)
 
     # Rebuild index after saving new memory
-    # user_data["user_memory_index"] = build_memory_index(memory, data_args, user_data["user_memory_index"], name=user_id)
     new_memory = Document(text=f"User: {query_text}\nAI: {history_state[-1]['response']}")
     user_data["user_memory_index"].insert(new_memory)
 

@@ -120,6 +120,55 @@ def chatgpt_chat(prompt, system, history, gpt_config, api_index=0):
 
 
 
+# def predict_new(
+#     text,
+#     history,
+#     top_p,
+#     temperature,
+#     max_length_tokens,
+#     max_context_length_tokens,
+#     user_name,
+#     user_memory,
+#     user_memory_index,
+#     service_context,
+#     api_index
+# ):
+#     if text == "":
+#         return history, history, "Empty context."
+
+#     system_prompt, related_memo = build_prompt_with_search_memory_llamaindex(
+#         history, text, user_memory, user_name, user_memory_index,
+#         service_context=service_context, api_keys=api_keys, api_index=api_index,
+#         meta_prompt=meta_prompt, new_user_meta_prompt=new_user_meta_prompt,
+#         data_args=data_args, boot_actual_name=boot_actual_name
+#     )
+#     # chatgpt_config = {"model": "gpt-3.5-turbo",
+#     chatgpt_config = {"model": "gpt-4o-mini",
+#         "temperature": temperature,
+#         "max_tokens": max_length_tokens,
+#         "top_p": top_p,
+#         "frequency_penalty": 0.4,
+#         "presence_penalty": 0.2,
+#         'n':1
+#         }
+
+#     if len(history) > data_args.max_history:
+#         history = history[data_args.max_history:]
+#     # print(history)
+#     response = chatgpt_chat(prompt=text,system=system_prompt,history=history,gpt_config=chatgpt_config,api_index=api_index)
+#     result = response
+
+
+#     torch.cuda.empty_cache()
+
+#     a, b = [[y[0], y[1]] for y in history] + [[text, result]], history + [[text, result]]
+#     a = [{'query': item[0], 'response': item[1]} for item in a]
+
+#     return a, b, "Generating..."
+
+
+import time
+
 def predict_new(
     text,
     history,
@@ -136,13 +185,19 @@ def predict_new(
     if text == "":
         return history, history, "Empty context."
 
+    start_time = time.time()
+
+    prompt_start = time.time()
     system_prompt, related_memo = build_prompt_with_search_memory_llamaindex(
         history, text, user_memory, user_name, user_memory_index,
         service_context=service_context, api_keys=api_keys, api_index=api_index,
         meta_prompt=meta_prompt, new_user_meta_prompt=new_user_meta_prompt,
         data_args=data_args, boot_actual_name=boot_actual_name
     )
-    # chatgpt_config = {"model": "gpt-3.5-turbo",
+    prompt_time = time.time() - prompt_start
+    print(f"Prompt building took {prompt_time:.2f} seconds")
+    print(f"System prompt length: {len(system_prompt)}")
+
     chatgpt_config = {"model": "gpt-4o-mini",
         "temperature": temperature,
         "max_tokens": max_length_tokens,
@@ -153,19 +208,25 @@ def predict_new(
         }
 
     if len(history) > data_args.max_history:
-        history = history[data_args.max_history:]
-    # print(history)
+        history = history[-data_args.max_history:]
+    print(f"History length: {len(history)}")
+
+    api_start = time.time()
     response = chatgpt_chat(prompt=text,system=system_prompt,history=history,gpt_config=chatgpt_config,api_index=api_index)
+    api_time = time.time() - api_start
+    print(f"API call took {api_time:.2f} seconds")
+
     result = response
 
-
     torch.cuda.empty_cache()
+
+    total_time = time.time() - start_time
+    print(f"Total predict_new time: {total_time:.2f} seconds")
 
     a, b = [[y[0], y[1]] for y in history] + [[text, result]], history + [[text, result]]
     a = [{'query': item[0], 'response': item[1]} for item in a]
 
     return a, b, "Generating..."
-
 
 
 def main():

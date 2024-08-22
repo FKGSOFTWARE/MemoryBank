@@ -13,8 +13,8 @@ import numpy as np
 import json
 import logging
 # return top-k text chunk from vector store
-# VECTOR_SEARCH_TOP_K = 3 #original
-VECTOR_SEARCH_TOP_K = 15
+VECTOR_SEARCH_TOP_K = 3 #original
+# VECTOR_SEARCH_TOP_K = 15
 
 class JsonMemoryLoader(UnstructuredFileLoader):
     def __init__(self, filepath,language,mode="elements"):

@@ -71,7 +71,54 @@ def generate_ai_keyword():
 import logging
 import os
 
+# def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_name, user_memory_index, service_context, api_keys, api_index, meta_prompt, new_user_meta_prompt, data_args, boot_actual_name):
+#     logging.info(f"Processing query for user: {user_name}")
+
+#     total_memories = len(user_memory_index.docstore.docs) if user_memory_index and hasattr(user_memory_index, 'docstore') else 0
+#     logging.info(f"Total memories in index: {total_memories}")
+
+#     logging.info(f"Memory file path: {os.path.join(data_args.memory_basic_dir, data_args.memory_file)}")
+#     logging.info(f"User memory index exists: {user_memory_index is not None}")
+
+#     memory_search_query = f'The most relevant content to the question "{text}" is:'
+#     if user_memory_index:
+#         try:
+#             related_memos = user_memory_index.query(memory_search_query, service_context=service_context, similarity_top_k=10)  # Increase top_k to retrieve more memories
+#             related_memos_content = []
+#             for node in related_memos.source_nodes:
+#                 related_memos_content.append(node.node.text)
+#             related_memos = "\n\n".join(related_memos_content)
+#         except Exception as e:
+#             logging.error(f"Error during memory retrieval: {e}")
+#             related_memos = ''
+#     else:
+#         related_memos = ''
+
+#     logging.info(f"Number of relevant memories retrieved: {len(related_memos_content) if related_memos else 0}")
+#     logging.info(f"Relevant memories content: {related_memos}")
+
+#     if len(related_memos) > 0:
+#         history_summary = ""
+#         related_memory_content = f"\n{str(related_memos).strip()}\n"
+#     else:
+#         history_summary = ''
+#         related_memory_content = ''
+
+#     personality = user_memory.get('overall_personality', "")
+
+#     if related_memos:
+#         prompt = meta_prompt.format(user_name=user_name, history_summary=history_summary, related_memory_content=related_memory_content, personality=personality, boot_actual_name=boot_actual_name)
+#     else:
+#         prompt = new_user_meta_prompt.format(user_name=user_name, boot_actual_name=boot_actual_name)
+
+#     return prompt, related_memos
+
+
+import time
+
 def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_name, user_memory_index, service_context, api_keys, api_index, meta_prompt, new_user_meta_prompt, data_args, boot_actual_name):
+    start_time = time.time()
+
     logging.info(f"Processing query for user: {user_name}")
 
     total_memories = len(user_memory_index.docstore.docs) if user_memory_index and hasattr(user_memory_index, 'docstore') else 0
@@ -81,9 +128,11 @@ def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_
     logging.info(f"User memory index exists: {user_memory_index is not None}")
 
     memory_search_query = f'The most relevant content to the question "{text}" is:'
+
+    query_start_time = time.time()
     if user_memory_index:
         try:
-            related_memos = user_memory_index.query(memory_search_query, service_context=service_context, similarity_top_k=10)  # Increase top_k to retrieve more memories
+            related_memos = user_memory_index.query(memory_search_query, service_context=service_context, similarity_top_k=10)
             related_memos_content = []
             for node in related_memos.source_nodes:
                 related_memos_content.append(node.node.text)
@@ -93,10 +142,13 @@ def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_
             related_memos = ''
     else:
         related_memos = ''
+    query_time = time.time() - query_start_time
+    print(f"Memory query time: {query_time:.2f} seconds")
 
     logging.info(f"Number of relevant memories retrieved: {len(related_memos_content) if related_memos else 0}")
     logging.info(f"Relevant memories content: {related_memos}")
 
+    prompt_construction_start = time.time()
     if len(related_memos) > 0:
         history_summary = ""
         related_memory_content = f"\n{str(related_memos).strip()}\n"
@@ -110,5 +162,10 @@ def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_
         prompt = meta_prompt.format(user_name=user_name, history_summary=history_summary, related_memory_content=related_memory_content, personality=personality, boot_actual_name=boot_actual_name)
     else:
         prompt = new_user_meta_prompt.format(user_name=user_name, boot_actual_name=boot_actual_name)
+    prompt_construction_time = time.time() - prompt_construction_start
+    print(f"Prompt construction time: {prompt_construction_time:.2f} seconds")
+
+    total_time = time.time() - start_time
+    print(f"Total build_prompt time: {total_time:.2f} seconds")
 
     return prompt, related_memos
