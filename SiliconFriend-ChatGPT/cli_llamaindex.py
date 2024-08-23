@@ -14,6 +14,11 @@ import nltk
 import torch
 from langchain.llms import AzureOpenAI,OpenAIChat
 
+import copy
+import logging
+import time
+import openai
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 prompt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(prompt_path)
@@ -73,50 +78,102 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
 )
 
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Define custom exceptions
+class DeactivatedKeyError(Exception):
+    pass
+
+class UnexpectedResponseError(Exception):
+    pass
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((openai.error.APIConnectionError, DeactivatedKeyError)),
+    reraise=True
+)
 def chatgpt_chat(prompt, system, history, gpt_config, api_index=0):
-    retry_times, count = 5, 0
-    response = None
-    while response is None and count < retry_times:
+    global api_keys, deactivated_keys, boot_actual_name, data_args
+
+    try:
+        request = copy.deepcopy(gpt_config)
+
+        # Construct message history
+        if data_args.language == 'en':
+            message = [
+                {"role": "system", "content": system.strip()},
+                {"role": "user", "content": "Hi!"},
+                {"role": "assistant", "content": f"Hi! I'm {boot_actual_name}! I will give you warm companion!"}
+            ]
+        else:
+            message = [
+                {"role": "system", "content": system.strip()},
+                {"role": "user", "content": "你好！"},
+                {"role": "assistant", "content": f"你好，我是{boot_actual_name}！我会给你温暖的陪伴！"}
+            ]
+
+        for query, response in history:
+            message.append({"role": "user", "content": query})
+            message.append({"role": "assistant", "content": response})
+
+        message.append({"role": "user", "content": f"{prompt}"})
+
+        # Make API call
+        response = openai.ChatCompletion.create(**request, messages=message)
+
+        # Process response
+        if response and isinstance(response, dict) and 'choices' in response:
+            return response['choices'][0]['message']['content']
+        else:
+            raise UnexpectedResponseError(f"Unexpected response format: {response}")
+
+    except openai.error.APIConnectionError as e:
+        logging.warning(f"OpenAI API Connection Error: {str(e)}. Retrying...")
+        raise
+
+    except openai.error.AuthenticationError as e:
+        if 'This key is associated with a deactivated account' in str(e):
+            logging.error(f"Deactivated API key detected: {api_keys[api_index]}")
+            deactivated_keys.append(api_keys[api_index])
+            raise DeactivatedKeyError("Deactivated API key")
+        else:
+            logging.error(f"Authentication Error: {str(e)}")
+            raise
+
+    except openai.error.RateLimitError as e:
+        logging.warning(f"Rate limit exceeded. Waiting and retrying... Error: {str(e)}")
+        time.sleep(20)  # Wait for 20 seconds before retrying
+        raise
+
+    except UnexpectedResponseError as e:
+        logging.error(f"Unexpected response: {str(e)}")
+        raise
+
+    except Exception as e:
+        logging.error(f"Unexpected error in API call: {str(e)}")
+        raise
+
+def chatgpt_chat_with_fallback(prompt, system, history, gpt_config, max_retries=5):
+    global api_keys, deactivated_keys
+
+    for attempt in range(max_retries):
         try:
-            request = copy.deepcopy(gpt_config)
-            if data_args.language == 'en':
-                message = [
-                    {"role": "system", "content": system.strip()},
-                    {"role": "user", "content": "Hi!"},
-                    {"role": "assistant", "content": f"Hi! I'm {boot_actual_name}! I will give you warm companion!"}]
-            else:
-                message = [
-                    {"role": "system", "content": system.strip()},
-                    {"role": "user", "content": "你好！"},
-                    {"role": "assistant", "content": f"你好，我是{boot_actual_name}！我会给你温暖的陪伴！"}]
-            for query, response in history:
-                message.append({"role": "user", "content": query})
-                message.append({"role": "assistant", "content": response})
-            message.append({"role": "user", "content": f"{prompt}"})
-
-            response = openai.ChatCompletion.create(**request, messages=message)
-
-        except openai.error.APIConnectionError as e:
-            print(f"OpenAI API Connection Error: {str(e)}")
-            count += 1
-            if count == retry_times:
-                raise  # Re-raise the exception if we've exhausted all retries
+            return chatgpt_chat(prompt, system, history, gpt_config, attempt % len(api_keys))
+        except DeactivatedKeyError:
+            continue  # Try the next API key
+        except UnexpectedResponseError:
+            logging.error(f"Unexpected response on attempt {attempt + 1}/{max_retries}")
+            if attempt == max_retries - 1:
+                return "I apologize, but I'm having trouble processing your request at the moment. Please try again later."
         except Exception as e:
-            print(f"Error in API call: {str(e)}")
-            if 'This key is associated with a deactivated account' in str(e):
-                deactivated_keys.append(api_keys[api_index])
-            api_index = api_index + 1 if api_index < len(api_keys) - 1 else 0
-            while api_keys[api_index] in deactivated_keys:
-                api_index = api_index + 1 if api_index < len(api_keys) - 1 else 0
-            openai.api_key = api_keys[api_index]
-            count += 1
-            if count == retry_times:
-                raise  # Re-raise the exception if we've exhausted all retries
+            logging.error(f"Error on attempt {attempt + 1}/{max_retries}: {str(e)}")
+            if attempt == max_retries - 1:
+                return "I'm sorry, but an unexpected error occurred. Please try again later."
 
-    if response and isinstance(response, dict) and 'choices' in response:
-        return response['choices'][0]['message']['content']
-    else:
-        raise ValueError(f"Unexpected response format or empty response: {response}")
+    return "I apologize, but I'm unable to process your request at this time due to technical difficulties. Please try again later."
 
 
 
