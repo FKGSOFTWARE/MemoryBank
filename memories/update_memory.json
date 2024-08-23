@@ -1,1 +1,27 @@
-{}
+{
+  "BenchUser_0251b4c4": {
+    "name": "BenchUser_0251b4c4",
+    "history": {
+      "2024-08-23": []
+    }
+  },
+  "BenchUser_ab25a341": {
+    "name": "BenchUser_ab25a341",
+    "history": {
+      "2024-08-23": [
+        {
+          "query": "I am going to subject you to a Long-Term Memory benchmark. In the following, I will be giving you different kinds of information and I expect you to answer extremely briefly, only providing the responses that you are required to provide. Otherwise, provide just short confirmations. Understood?",
+          "response": "Understood!"
+        },
+        {
+          "query": "My favourite colour is Purple.",
+          "response": "Got it! Your favorite color is purple."
+        },
+        {
+          "query": "Atheism is a non-prophet organization",
+          "response": "Got it! That's a humorous play on words."
+        }
+      ]
+    }
+  }
+}

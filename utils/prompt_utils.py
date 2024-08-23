@@ -132,7 +132,7 @@ def build_prompt_with_search_memory_llamaindex(history, text, user_memory, user_
     query_start_time = time.time()
     if user_memory_index:
         try:
-            related_memos = user_memory_index.query(memory_search_query, service_context=service_context, similarity_top_k=10)
+            related_memos = user_memory_index.query(memory_search_query, service_context=service_context, similarity_top_k=5)
             related_memos_content = []
             for node in related_memos.source_nodes:
                 related_memos_content.append(node.node.text)
